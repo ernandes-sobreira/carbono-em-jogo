@@ -1,0 +1,1260 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Carbono em Jogo — Fluxos</title>
+  <style>
+    :root{
+      --bg1:#081022;
+      --panel: rgba(12,18,40,.94);
+      --card: rgba(14,22,52,.92);
+      --line: rgba(255,255,255,.14);
+      --text:#eef3ff;
+      --muted:#b8c3ff;
+      --shadow: 0 14px 34px rgba(0,0,0,.45);
+      --r:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      min-height:100vh;
+      padding:12px;
+      overflow-x:hidden;
+      -webkit-tap-highlight-color: transparent;
+      background:
+        radial-gradient(900px 600px at 20% 0%, rgba(32,58,143,.20), rgba(32,58,143,0) 55%),
+        radial-gradient(900px 600px at 90% 10%, rgba(106,27,154,.18), rgba(106,27,154,0) 60%),
+        var(--bg1);
+    }
+
+    .wrap{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+    header{
+      border:1px solid var(--line);
+      border-radius:var(--r);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding:12px;
+      backdrop-filter: blur(10px);
+      position:relative;
+      overflow:hidden;
+    }
+    h1{margin:0 0 6px;font-size:18px}
+    .sub{
+      margin:0;
+      color:var(--muted);
+      font-size:12.5px;
+      line-height:1.35;
+    }
+    .toprow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+    .pill{
+      padding:8px 10px;border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.07);
+      color:var(--muted);
+      font-size:13px;
+      display:inline-flex;gap:8px;align-items:center;
+    }
+    .pill b{color:var(--text)}
+    .btn{
+      padding:9px 12px;border-radius:12px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.09);
+      color:var(--text);
+      font-weight:900;
+      cursor:pointer;
+    }
+
+    .panel{
+      border:1px solid var(--line);
+      border-radius:var(--r);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      padding:12px;
+      backdrop-filter: blur(10px);
+    }
+
+    /* ===== Dia/Noite: AGORA FORTE (dia clareia, noite escurece) ===== */
+    .nightShade{
+      position:fixed; inset:0;
+      z-index: 9999;
+      pointer-events:none;
+      opacity:0;
+      transition: opacity 1400ms linear;
+      background:
+        radial-gradient(900px 600px at 80% 10%, rgba(180,210,255,.20), rgba(180,210,255,0) 60%),
+        linear-gradient(180deg, rgba(0,0,0,.72), rgba(0,0,0,.28));
+    }
+    .nightOn{ opacity:.86; }
+
+    .dayGlow{
+      position:fixed; inset:0;
+      z-index: 9998;
+      pointer-events:none;
+      opacity:.0;
+      transition: opacity 1400ms linear;
+      background:
+        radial-gradient(900px 650px at 40% 5%, rgba(255,255,255,.22), rgba(255,255,255,0) 60%),
+        radial-gradient(900px 650px at 90% 15%, rgba(120,200,255,.18), rgba(120,200,255,0) 60%);
+      mix-blend-mode: screen;
+    }
+    .dayOn{ opacity:.58; }
+
+    /* ===== Board ===== */
+    .ecoBoard{
+      position:relative;
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:18px;
+      background: rgba(10,14,30,.35);
+      overflow:hidden;
+      padding:10px;
+      min-height:320px;
+      z-index: 2;
+    }
+
+    /* Event overlays (strong) */
+    .overlay{
+      position:absolute; inset:0;
+      pointer-events:none;
+      opacity:0;
+      z-index:8;
+      transition: opacity 220ms ease;
+    }
+    .overlay.show{opacity:1}
+    .overlay.drought{
+      background:
+        repeating-linear-gradient(120deg, rgba(255,210,120,.0) 0 24px, rgba(255,210,120,.10) 24px 26px),
+        radial-gradient(600px 360px at 50% 40%, rgba(255,210,120,.30), rgba(255,210,120,0) 70%);
+      mix-blend-mode: screen;
+    }
+    .overlay.deforest{
+      background:
+        radial-gradient(700px 420px at 50% 35%, rgba(120,255,170,.10), rgba(120,255,170,0) 65%),
+        linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.62));
+    }
+    .overlay.fire{
+      background:
+        radial-gradient(600px 380px at 50% 55%, rgba(255,90,70,.46), rgba(255,90,70,0) 70%),
+        linear-gradient(0deg, rgba(255,120,0,.34), rgba(0,0,0,0) 60%);
+      mix-blend-mode: screen;
+    }
+
+    .flash{
+      position:fixed; inset:0;
+      background: rgba(255,0,0,.0);
+      pointer-events:none;
+      z-index:999999;
+    }
+    .flash.go{ animation: flashRed 900ms ease-out 1; }
+    @keyframes flashRed{
+      0%{ background: rgba(255,0,0,0); }
+      12%{ background: rgba(255,60,60,.35); }
+      30%{ background: rgba(255,0,0,.12); }
+      55%{ background: rgba(255,160,0,.25); }
+      100%{ background: rgba(255,0,0,0); }
+    }
+    .shake{ animation: shake 650ms cubic-bezier(.36,.07,.19,.97) both; }
+    @keyframes shake{
+      10%,90%{ transform: translate3d(-1px, 0, 0); }
+      20%,80%{ transform: translate3d(2px, 0, 0); }
+      30%,50%,70%{ transform: translate3d(-4px, 0, 0); }
+      40%,60%{ transform: translate3d(4px, 0, 0); }
+    }
+
+    /* Layout cards 2x2 */
+    .cols{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+      position:relative;
+      z-index:2;
+    }
+
+    .card{
+      position:relative;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background: var(--card);
+      padding:10px;
+      min-height:122px;
+      overflow:hidden;
+      cursor:pointer;
+    }
+    .card.dropHover{ outline:3px solid rgba(42,214,123,.55); }
+
+    /* Sedimento bonito */
+    #cardSed{
+      background:
+        radial-gradient(420px 220px at 20% 20%, rgba(160,110,60,.28), rgba(160,110,60,0) 60%),
+        linear-gradient(180deg, rgba(24,18,14,.95), rgba(12,18,40,.92));
+      border-color: rgba(255,255,255,.18);
+    }
+
+    .row1{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .title{
+      font-weight:1000;
+      display:flex;align-items:center;gap:8px;
+      font-size:15px;
+    }
+    .big{ font-weight:1000; font-size:30px; line-height:1; }
+    .subnums{
+      margin-top:10px;
+      display:flex; gap:10px; flex-wrap:wrap;
+      color:rgba(255,255,255,.90);
+      font-weight:900;
+      font-size:13px;
+    }
+    .badge{
+      padding:6px 9px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.06);
+      display:inline-flex; align-items:center; gap:6px;
+    }
+
+    .spawnZone{
+      margin-top:10px;
+      border:1px dashed rgba(255,255,255,.22);
+      border-radius:16px;
+      background: rgba(10,14,30,.22);
+      padding:10px;
+      position:relative;
+      min-height:76px;
+      overflow:hidden;
+      z-index:3;
+    }
+    .muted{color:var(--muted);font-size:12.5px}
+
+    footer{
+      margin-top:10px;
+      color: rgba(255,255,255,.70);
+      font-size:12px;
+      text-align:center;
+      padding:8px 0 2px;
+    }
+
+    /* Toast */
+    .toast{
+      position:fixed;
+      left:12px; right:12px;
+      top:10px;
+      z-index:9999;
+      display:flex;
+      justify-content:center;
+      pointer-events:none;
+    }
+    .toast .bubble{
+      max-width:920px;
+      width:100%;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.45);
+      backdrop-filter: blur(10px);
+      border-radius:14px;
+      padding:10px 12px;
+      box-shadow: 0 16px 36px rgba(0,0,0,.35);
+      font-weight:800;
+      opacity:0;
+      transform: translateY(-8px);
+      transition: opacity 220ms ease, transform 220ms ease;
+    }
+    .toast .bubble.show{opacity:1; transform: translateY(0);}
+
+    /* Tokens */
+    .token{
+      width:34px;height:34px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.18);
+      box-shadow: 0 12px 22px rgba(0,0,0,.35);
+      position:fixed;
+      display:flex;align-items:center;justify-content:center;
+      font-size:16px;
+      user-select:none;
+      touch-action:none;
+      cursor:grab;
+      z-index:5000;
+    }
+    .token.dragging{transform:scale(1.08);box-shadow:0 18px 32px rgba(0,0,0,.48)}
+    .token.c{ background: #7a4b2d; }
+    .token.co2{ background: #b22b2b; }
+
+    /* Flow tokens */
+    .flowToken{
+      width:22px;height:22px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.18);
+      position:fixed;
+      display:flex;align-items:center;justify-content:center;
+      font-size:12px;
+      z-index:6000;
+      pointer-events:none;
+      box-shadow: 0 10px 18px rgba(0,0,0,.35);
+    }
+    .flowToken.c{ background: rgba(122,75,45,.92); }
+    .flowToken.co2{ background: rgba(178,43,43,.92); }
+
+    /* Modals */
+    .modal{
+      position:fixed; inset:0;
+      display:none; align-items:center; justify-content:center;
+      padding:16px;
+      background: rgba(0,0,0,.78);
+      z-index:99999;
+    }
+    .modal.show{display:flex}
+    .modal .cardM{
+      width:min(900px, 100%);
+      border-radius:18px;
+      border:1px solid var(--line);
+      background: rgba(10,14,30,.98);
+      box-shadow: var(--shadow);
+      padding:14px;
+      position:relative;
+    }
+    .closeX{
+      position:absolute; top:10px; right:10px;
+      width:38px;height:38px;border-radius:12px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color:var(--text);
+      font-weight:900;
+      cursor:pointer;
+    }
+    .modal h2{margin:0 0 6px;font-size:18px}
+    .modal p{margin:0 0 10px;color:var(--muted);line-height:1.4;white-space:pre-wrap}
+    .btnClose{
+      margin-top:12px;
+      padding:10px 12px;border-radius:12px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.08);
+      color:var(--text);
+      font-weight:900;
+      cursor:pointer;
+    }
+  </style>
+</head>
+<body>
+<div class="flash" id="flash"></div>
+<div class="dayGlow" id="dg"></div>
+<div class="nightShade" id="ns"></div>
+
+<div class="toast" aria-live="polite" aria-atomic="true">
+  <div class="bubble" id="toastBubble">Mensagem</div>
+</div>
+
+<div class="wrap" id="appWrap">
+  <header>
+    <h1>🟤 Carbono em Jogo — Fluxos</h1>
+    <p class="sub">
+      <b>Quer ser um CARBONAUTA?</b> Aquele que entende o fluxo de carbono.
+      Você tem <b>60s</b> para equilibrar o carbono nos compartimentos.
+      <b>Estoque o máximo possível no Sedimento</b>, crie <b>🌳/🦠</b>, evite eventos extremos e <b>restaure</b>.
+      <span style="display:block;margin-top:4px">
+        Legenda: <b>🟤 = carbono orgânico</b> | <b>🔴 = CO₂/CH₄</b>
+      </span>
+    </p>
+    <div class="toprow">
+      <div class="pill">⏱️ <b id="time">60</b>s</div>
+      <div class="pill">☀️/🌙 <b id="cycleLabel">Dia</b></div>
+      <div class="pill">⚠️ <b id="eventLab">—</b></div>
+      <button class="btn" id="rulesBtn" type="button">Regras</button>
+      <button class="btn" id="finishBtn" type="button">Finalizar</button>
+      <button class="btn" id="resetBtn" type="button">Reiniciar</button>
+    </div>
+  </header>
+
+  <section class="panel">
+    <div class="ecoBoard" id="ecoBoard">
+      <div class="overlay drought" id="ovDrought"></div>
+      <div class="overlay deforest" id="ovDeforest"></div>
+      <div class="overlay fire" id="ovFire"></div>
+
+      <div class="cols">
+        <div class="card dropzone" id="cardSed" data-zone="sed">
+          <div class="row1">
+            <div class="title">🟫 Sedimento</div>
+            <div class="big" id="sedCount">0</div>
+          </div>
+          <div class="subnums">
+            <span class="badge">🟤 estoca</span>
+            <span class="badge">sumidouro = sed alto</span>
+          </div>
+        </div>
+
+        <div class="card dropzone" id="cardWat" data-zone="wat">
+          <div class="row1">
+            <div class="title">💧 Água</div>
+            <div class="big"><span id="watCount">0</span></div>
+          </div>
+          <div class="subnums">
+            <span class="badge">🦠 <span id="algaeCount">0</span></span>
+            <span class="badge">2🟤 → 1🦠</span>
+          </div>
+        </div>
+
+        <div class="card dropzone" id="cardBio" data-zone="bio">
+          <div class="row1">
+            <div class="title">🌿 Plantas</div>
+            <div class="big"><span id="bioCount">0</span></div>
+          </div>
+          <div class="subnums">
+            <span class="badge">🌳 <span id="treeCount">0</span></span>
+            <span class="badge">2🟤 → 1🌳</span>
+          </div>
+        </div>
+
+        <div class="card" id="cardAtm" style="background: rgba(40,12,20,.85); border-color: rgba(255,255,255,.18);">
+          <div class="row1">
+            <div class="title">🌫️ Atmosfera</div>
+            <div class="big" id="atmCount">0</div>
+          </div>
+          <div class="subnums">
+            <span class="badge">🔴 deve ficar baixo</span>
+            <span class="badge">arraste 🔴 p/ 🌿 ou 💧</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="spawnZone" id="spawnZone">
+      <div class="muted"><b>🟤</b> nasce (2s) • <b>🔴</b> nasce (9s) • Dia/Noite: 5s (fade forte) • Eventos: 13s/13s/13s + restauração</div>
+      <div class="muted">Dica: no dia 🌳/🦠 puxam 🔴 (pouco por vez). Noite solta um pouco (leve).</div>
+    </div>
+
+    <footer>Idealizado por Ernandes Sobreira para educação climática.</footer>
+  </section>
+</div>
+
+<!-- Modal geral -->
+<div class="modal" id="modal" aria-hidden="true">
+  <div class="cardM" role="dialog" aria-modal="true">
+    <button class="closeX" id="xClose" type="button">✕</button>
+    <h2 id="mTitle">Info</h2>
+    <p id="mText"></p>
+    <button class="btnClose" id="closeBtn" type="button">Fechar</button>
+  </div>
+</div>
+
+<!-- Start modal -->
+<div class="modal" id="startModal" aria-hidden="true">
+  <div class="cardM" role="dialog" aria-modal="true">
+    <h2 style="margin:0 0 6px;font-size:18px">Quer ser um CARBONAUTA?</h2>
+    <p style="margin:0 0 10px;color:var(--muted);white-space:pre-wrap;line-height:1.4;font-size:12.5px">
+Você tem 60s para fazer o carbono “se equilibrar” no ambiente.
+
+✅ Meta principal: ESTOCAR o máximo no 🟫 Sedimento (sumidouro de verdade).
+✅ Meta secundária: manter 🔴 baixo na Atmosfera.
+
+Legenda:
+🟤 = carbono orgânico
+🔴 = CO₂/CH₄
+
+Como jogar:
+1) Arraste 🟤 para 🟫 / 🌿 / 💧
+2) Arraste 🔴 para 🌿 ou 💧 (recuperar)
+3) 2🟤 → 1🌳 e 2🟤 → 1🦠
+
+⚠️ Eventos: a cada 13s: SECA → DESMATE → QUEIMADA (pausa real)
+🌱 Depois entra RESTAURAÇÃO (até o fim) e você ganha +5 🌳 no final.
+    </p>
+    <button class="btnClose" id="startBtn" type="button">COMEÇAR</button>
+  </div>
+</div>
+
+<script>
+  const state = {
+    t: 60,
+    running: false,
+    paused: false,
+    elapsed: 0,
+
+    sed: 0, wat: 0, atm: 0,
+    bioC: 0, trees: 0,
+    algae: 0,
+
+    plantBuf: 0,
+    algaeBuf: 0,
+
+    isDay: true,
+
+    // eventos
+    stage: 0, // 0 seca, 1 desmate, 2 queimada, 3+ restauração
+    eventLabel: "—",
+    droughtBoost: 0,
+
+    // REALISMO: mudanças na atmosfera entram aos poucos
+    atmBufferPlus: 0,
+    atmBufferMinus: 0,
+
+    tokens: new Map(),
+    nextId: 1,
+
+    timers: {},
+    resumeOnClose: false,
+    modalOpen: false
+  };
+
+  const $ = (id)=>document.getElementById(id);
+  const spawnZone = $("spawnZone");
+  const toastBubble = $("toastBubble");
+
+  function toast(msg, ms=1200){
+    toastBubble.textContent = msg;
+    toastBubble.classList.add("show");
+    clearTimeout(toastBubble._t);
+    toastBubble._t = setTimeout(()=>toastBubble.classList.remove("show"), ms);
+  }
+  function clamp(n,min,max){ return Math.max(min, Math.min(max, n)); }
+
+  function openModal(id){
+    const m=$(id);
+    m.classList.add("show");
+    m.setAttribute("aria-hidden","false");
+    state.modalOpen = true;
+  }
+  function closeModal(id){
+    const m=$(id);
+    m.classList.remove("show");
+    m.setAttribute("aria-hidden","true");
+    state.modalOpen = false;
+
+    if(state.resumeOnClose){
+      state.resumeOnClose = false;
+      resumeGameTimers();
+      state.paused = false;
+      toast("▶️ Jogo retomado!", 900);
+    }
+  }
+
+  function updateUI(){
+    $("time").textContent = state.t;
+    $("sedCount").textContent = state.sed;
+    $("watCount").textContent = state.wat;
+    $("atmCount").textContent = state.atm; // sempre visível
+    $("bioCount").textContent = state.bioC;
+    $("treeCount").textContent = state.trees;
+    $("algaeCount").textContent = state.algae;
+    $("cycleLabel").textContent = state.isDay ? "Dia" : "Noite";
+    $("eventLab").textContent = state.eventLabel;
+  }
+
+  /* ===== Dia/Noite (forte e diferente) ===== */
+  function applyDayNight(){
+    const dg = $("dg");
+    const ns = $("ns");
+    if(state.isDay){
+      dg.classList.add("dayOn");
+      ns.classList.remove("nightOn");
+    } else {
+      dg.classList.remove("dayOn");
+      ns.classList.add("nightOn");
+    }
+  }
+  function toggleDayNight(){
+    if(!state.running || state.paused) return;
+    state.isDay = !state.isDay;
+    applyDayNight();
+    toast(state.isDay ? "☀️ Dia: 🌳/🦠 puxam 🔴" : "🌙 Noite: respiração solta um pouco", 900);
+    updateUI();
+  }
+
+  /* ===== Card info (curto) ===== */
+  function cardInfo(zone){
+    if(zone === "sed") return "🟫 Sedimento: principal estoque. Sumidouro real precisa de sedimento alto.";
+    if(zone === "wat") return "💧 Água: junte 2🟤 → 1🦠 (alga).";
+    if(zone === "bio") return "🌿 Plantas: junte 2🟤 → 1🌳 (árvore).";
+    return "";
+  }
+
+  ["cardSed","cardWat","cardBio","cardAtm"].forEach(id=>{
+    $(id).addEventListener("click", ()=>{
+      if(id==="cardAtm"){
+        $("mTitle").textContent = "🌫️ Atmosfera";
+        $("mText").textContent = "🔴 aqui é ‘emissão’. Mantenha baixo. Recupere arrastando 🔴 para 🌿 ou 💧.";
+      } else {
+        const z = $(id).dataset.zone;
+        $("mTitle").textContent = "O que isso faz?";
+        $("mText").textContent = cardInfo(z);
+      }
+      openModal("modal");
+    });
+  });
+
+  $("rulesBtn").addEventListener("click", ()=>{
+    $("mTitle").textContent = "Regras (bem fácil)";
+    $("mText").textContent =
+`Legenda: 🟤 = carbono orgânico | 🔴 = CO₂/CH₄
+
+• Arraste 🟤 para 🟫 / 🌿 / 💧
+• Arraste 🔴 para 🌿 ou 💧 (recuperar)
+• 2🟤 → 1🌳 e 2🟤 → 1🦠
+
+Dia/Noite (5s):
+• Dia: 🌳/🦠 puxam 🔴 (pouco por vez)
+• Noite: respiração solta 🔴 (leve)
+
+Eventos:
+13s SECA → 13s DESMATE → 13s QUEIMADA (pausa real)
+Depois: RESTAURAÇÃO até o fim (+5 🌳 no resultado).`;
+    openModal("modal");
+  });
+
+  function onCloseAnyModal(){
+    if($("modal").classList.contains("show")) closeModal("modal");
+    if($("startModal").classList.contains("show")) closeModal("startModal");
+  }
+  $("closeBtn").addEventListener("click", onCloseAnyModal);
+  $("xClose").addEventListener("click", onCloseAnyModal);
+  $("modal").addEventListener("click", (e)=>{ if(e.target === $("modal")) closeModal("modal"); });
+  $("startBtn").addEventListener("click", ()=>{ closeModal("startModal"); startGame(); });
+
+  /* ===== Tokens ===== */
+  function zoneRect(){ return spawnZone.getBoundingClientRect(); }
+
+  function createToken(type){
+    if(!state.running || state.paused) return;
+    const id = state.nextId++;
+    const el = document.createElement("div");
+    el.className = "token " + (type==="co2" ? "co2" : "c");
+    el.textContent = (type==="co2") ? "🔴" : "🟤";
+    el.dataset.id = String(id);
+
+    const r = zoneRect();
+    const pad = 12;
+    const x = r.left + pad + Math.random() * (r.width - 34 - pad*2);
+    const y = r.top  + 16  + Math.random() * (Math.max(40, r.height - 34 - 18));
+
+    el.style.left = x + "px";
+    el.style.top  = y + "px";
+
+    const vx = (Math.random()*2 - 1) * 0.20;
+    const vy = (Math.random()*2 - 1) * 0.14;
+
+    document.body.appendChild(el);
+    state.tokens.set(id, { el, x, y, vx, vy, type });
+
+    el.addEventListener("pointerdown", onPointerDown);
+  }
+
+  let drag = null;
+  function onPointerDown(e){
+    if(!state.running || state.paused) return;
+    const el = e.currentTarget;
+    const id = Number(el.dataset.id);
+    const info = state.tokens.get(id);
+    if(!info) return;
+
+    el.setPointerCapture(e.pointerId);
+    el.classList.add("dragging");
+
+    const rect = el.getBoundingClientRect();
+    drag = { id, el, dx: e.clientX - rect.left, dy: e.clientY - rect.top };
+    e.preventDefault();
+  }
+
+  function getDropzones(){ return Array.from(document.querySelectorAll(".dropzone")); }
+  function clearHighlights(){ getDropzones().forEach(z=>z.classList.remove("dropHover")); }
+  function getDropzoneUnderPoint(x,y){
+    for(const z of getDropzones()){
+      const r = z.getBoundingClientRect();
+      if(x>=r.left && x<=r.right && y>=r.top && y<=r.bottom) return z;
+    }
+    return null;
+  }
+  function highlightDropzone(x,y){
+    clearHighlights();
+    const z = getDropzoneUnderPoint(x,y);
+    if(z) z.classList.add("dropHover");
+  }
+
+  window.addEventListener("pointermove", (e)=>{
+    if(!drag) return;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    let x = e.clientX - drag.dx;
+    let y = e.clientY - drag.dy;
+
+    x = clamp(x, 2, w - 36);
+    y = clamp(y, 2, h - 36);
+
+    drag.el.style.left = x + "px";
+    drag.el.style.top  = y + "px";
+
+    const info = state.tokens.get(drag.id);
+    if(info){ info.x=x; info.y=y; }
+
+    highlightDropzone(e.clientX, e.clientY);
+    e.preventDefault();
+  }, {passive:false});
+
+  window.addEventListener("pointerup", (e)=>{
+    if(!drag) return;
+    drag.el.classList.remove("dragging");
+    const z = getDropzoneUnderPoint(e.clientX, e.clientY);
+    if(z) applyDrop(z.dataset.zone, drag.id);
+    clearHighlights();
+    drag = null;
+    e.preventDefault();
+  }, {passive:false});
+
+  function removeToken(id){
+    const info = state.tokens.get(id);
+    if(!info) return;
+    info.el.remove();
+    state.tokens.delete(id);
+  }
+
+  function checkPlantCompletion(){
+    while(state.plantBuf >= 2){
+      state.plantBuf -= 2;
+      state.trees += 1;
+      toast("🌳 +1 árvore!", 800);
+    }
+  }
+  function checkAlgaeCompletion(){
+    while(state.algaeBuf >= 2){
+      state.algaeBuf -= 2;
+      state.algae += 1;
+      toast("🦠 +1 alga!", 800);
+    }
+  }
+
+  // REALISMO: mexer na atmosfera por buffer (entra/sai no máximo 2 por segundo)
+  function addAtmBuffered(n){
+    state.atmBufferPlus += Math.max(0, n|0);
+  }
+  function subAtmBuffered(n){
+    state.atmBufferMinus += Math.max(0, n|0);
+  }
+  function applyAtmBuffers(){
+    if(!state.running || state.paused) return;
+    const step = 2; // máximo por segundo (evita salto 31→2 etc.)
+
+    const plus = Math.min(step, state.atmBufferPlus);
+    const minus = Math.min(step, state.atmBufferMinus);
+
+    if(plus>0){ state.atm += plus; state.atmBufferPlus -= plus; }
+    if(minus>0){
+      const real = Math.min(state.atm, minus);
+      state.atm -= real;
+      state.atmBufferMinus -= real;
+    }
+    updateUI();
+  }
+
+  function applyDrop(zone, tokenId){
+    if(state.paused) return;
+    const info = state.tokens.get(tokenId);
+    if(!info) return;
+
+    if(info.type === "co2"){
+      if(zone === "bio"){
+        // tira 1 do ar (buffer pra suavizar)
+        subAtmBuffered(1);
+        state.plantBuf += 1;
+        removeToken(tokenId);
+        checkPlantCompletion();
+        toast("✅ 🔴 recuperado pelas PLANTAS", 800);
+        updateUI();
+        return;
+      }
+      if(zone === "wat"){
+        subAtmBuffered(1);
+        state.algaeBuf += 1;
+        removeToken(tokenId);
+        checkAlgaeCompletion();
+        toast("✅ 🔴 recuperado pela ÁGUA/ALGAS", 800);
+        updateUI();
+        return;
+      }
+      toast("🔴 Leve para 🌿 ou 💧", 900);
+      return;
+    }
+
+    if(zone === "sed"){
+      state.sed += 1;
+      toast("🟤 estocado no Sedimento", 800);
+      removeToken(tokenId);
+    } else if(zone === "bio"){
+      state.bioC += 1;
+      state.plantBuf += 1;
+      toast("🟤 foi para Plantas", 700);
+      removeToken(tokenId);
+      checkPlantCompletion();
+    } else if(zone === "wat"){
+      state.wat += 1;
+      state.algaeBuf += 1;
+      toast("🟤 foi para a Água", 700);
+      removeToken(tokenId);
+      checkAlgaeCompletion();
+    }
+    updateUI();
+  }
+
+  function driftStep(){
+    if(!state.running || state.paused) return;
+    if(drag) return;
+
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    state.tokens.forEach((info)=>{
+      let x = info.x + info.vx;
+      let y = info.y + info.vy;
+
+      if(x < 2 || x > w - 36) info.vx *= -1;
+      if(y < 80 || y > h - 36) info.vy *= -1;
+
+      x = clamp(x, 2, w - 36);
+      y = clamp(y, 80, h - 36);
+
+      info.x = x; info.y = y;
+      info.el.style.left = x + "px";
+      info.el.style.top  = y + "px";
+    });
+  }
+
+  /* ===== Flow animation ===== */
+  function centerOf(el){
+    const r = el.getBoundingClientRect();
+    return { x: r.left + r.width/2, y: r.top + r.height/2 };
+  }
+  function animateFlow(fromEl, toEl, type, onArrive){
+    const start = centerOf(fromEl);
+    const end = centerOf(toEl);
+
+    const el = document.createElement("div");
+    el.className = "flowToken " + (type==="co2" ? "co2" : "c");
+    el.textContent = (type==="co2" ? "🔴" : "🟤");
+    document.body.appendChild(el);
+
+    const duration = 1100; // um pouco mais lento
+    const t0 = performance.now();
+
+    function step(t){
+      const k = Math.min(1, (t - t0) / duration);
+      const ease = 1 - Math.pow(1-k, 3);
+
+      const cx = (start.x + end.x)/2;
+      const cy = (start.y + end.y)/2 - 70;
+
+      const x = (1-ease)*(1-ease)*start.x + 2*(1-ease)*ease*cx + ease*ease*end.x;
+      const y = (1-ease)*(1-ease)*start.y + 2*(1-ease)*ease*cy + ease*ease*end.y;
+
+      el.style.left = (x - 11) + "px";
+      el.style.top  = (y - 11) + "px";
+
+      if(k < 1) requestAnimationFrame(step);
+      else { el.remove(); onArrive?.(); }
+    }
+    requestAnimationFrame(step);
+  }
+
+  /* ===== Fluxos naturais (bem mais “realistas”) ===== */
+  function flowSedToWat(){
+    if(!state.running || state.paused || state.sed <= 0) return;
+    if(Math.random() < 0.30){
+      state.sed -= 1;
+      animateFlow($("cardSed"), $("cardWat"), "c", ()=>{
+        state.wat += 1;
+        state.algaeBuf += 1;
+        checkAlgaeCompletion();
+        updateUI();
+      });
+      updateUI();
+    }
+  }
+
+  function flowSedToPlants(){
+    if(!state.running || state.paused || state.sed <= 0) return;
+    if(Math.random() < 0.14){
+      state.sed -= 1;
+      animateFlow($("cardSed"), $("cardBio"), "c", ()=>{
+        state.bioC += 1;
+        state.plantBuf += 1;
+        checkPlantCompletion();
+        updateUI();
+      });
+      updateUI();
+    }
+  }
+
+  // decomposição: sedimento → atmosfera (bem baixo)
+  function flowSedToAtm(){
+    if(!state.running || state.paused || state.sed <= 0) return;
+    const p = 0.06 + state.droughtBoost; // era alto; agora realista
+    if(Math.random() < p){
+      state.sed -= 1;
+      animateFlow($("cardSed"), $("cardAtm"), "co2", ()=>{
+        addAtmBuffered(1);
+        updateUI();
+      });
+      updateUI();
+    }
+  }
+
+  // água → atmosfera (leve)
+  function flowWatToAtm(){
+    if(!state.running || state.paused || state.wat <= 0) return;
+    const p = 0.07 + state.droughtBoost;
+    if(Math.random() < p){
+      state.wat -= 1;
+      animateFlow($("cardWat"), $("cardAtm"), "co2", ()=>{
+        addAtmBuffered(1);
+        updateUI();
+      });
+      updateUI();
+    }
+  }
+
+  /* ===== Ecopulse (capado pra não “varrer” atmosfera em 1 tick) ===== */
+  function ecoPulse(){
+    if(!state.running || state.paused) return;
+
+    // Dia: puxam pouco por vez (cap 4)
+    if(state.isDay && state.atm > 0){
+      const cap = 4;
+      const capacity = Math.floor(state.trees*0.25 + state.algae*0.20);
+      const pull = Math.min(cap, state.atm, Math.max(0, capacity));
+      if(pull > 0){
+        subAtmBuffered(pull);
+        // parte vira biomassa (buf)
+        state.plantBuf += Math.floor(pull * 0.55);
+        state.algaeBuf += Math.floor(pull * 0.45);
+        checkPlantCompletion();
+        checkAlgaeCompletion();
+        toast(`☀️ Puxaram ${pull} 🔴 do ar`, 850);
+      }
+    }
+
+    // Noite: respiração leve (cap 2)
+    if(!state.isDay){
+      const cap = 2;
+      const emit = Math.min(cap, Math.floor(state.trees*0.06 + state.algae*0.05));
+      if(emit > 0){
+        addAtmBuffered(emit);
+        toast(`🌙 +${emit} 🔴 (respiração)`, 850);
+      }
+    }
+
+    state.droughtBoost = Math.max(0, state.droughtBoost - 0.02);
+    updateUI();
+  }
+
+  /* ===== Event FX ===== */
+  function strongEventOverlay(kind){
+    $("ovDrought").classList.remove("show");
+    $("ovDeforest").classList.remove("show");
+    $("ovFire").classList.remove("show");
+    if(kind==="drought") $("ovDrought").classList.add("show");
+    if(kind==="deforest") $("ovDeforest").classList.add("show");
+    if(kind==="fire") $("ovFire").classList.add("show");
+
+    const flash = $("flash");
+    flash.classList.remove("go"); void flash.offsetWidth; flash.classList.add("go");
+    const wrap = $("appWrap");
+    wrap.classList.remove("shake"); void wrap.offsetWidth; wrap.classList.add("shake");
+
+    setTimeout(()=>{
+      wrap.classList.remove("shake");
+      flash.classList.remove("go");
+      $("ovDrought").classList.remove("show");
+      $("ovDeforest").classList.remove("show");
+      $("ovFire").classList.remove("show");
+    }, 1050);
+  }
+
+  /* ===== Pause timers ===== */
+  function stopGameTimersForPause(){
+    Object.values(state.timers).forEach(t=> t && clearInterval(t));
+    state.timers = {};
+  }
+  function resumeGameTimers(){
+    state.timers.tick = setInterval(tick, 1000);
+
+    state.timers.spawnC = setInterval(spawnC, 2000);
+    state.timers.spawnCO2 = setInterval(spawnCO2, 9000); // mais realista (menos “spam”)
+    state.timers.flowSedWat = setInterval(flowSedToWat, 3800);
+    state.timers.flowSedBio = setInterval(flowSedToPlants, 6200);
+    state.timers.flowSedAtm = setInterval(flowSedToAtm, 5200);
+    state.timers.flowWatAtm = setInterval(flowWatToAtm, 5200);
+
+    state.timers.pulse = setInterval(ecoPulse, 2600);
+    state.timers.toggle = setInterval(toggleDayNight, 5000);
+    state.timers.drift = setInterval(driftStep, 30);
+    state.timers.atmBuf = setInterval(applyAtmBuffers, 1000);
+  }
+
+  /* ===== Eventos: 13s / 13s / 13s e depois restauração ===== */
+  function triggerEvent(kind){
+    if(!state.running) return;
+    if(state.t <= 1) return;
+
+    state.paused = true;
+    stopGameTimersForPause();
+    state.resumeOnClose = true;
+
+    let title="", text="";
+
+    if(kind==="drought"){
+      state.eventLabel = "SECA";
+      strongEventOverlay("drought");
+
+      const lossWat = Math.min(state.wat, 3);  // realista (não explode)
+      state.wat -= lossWat;
+
+      // emissão moderada (buffer)
+      addAtmBuffered(4);
+      state.droughtBoost = 0.14;
+
+      title = "🌵 SECA SEVERA";
+      text = `O que aconteceu:
+• Água reduziu: -${lossWat} (💧)
+• Emissão: +4 (🔴)
+
+Efeito:
+• aumenta saída de carbono para o ar por um tempo.`;
+    }
+
+    if(kind==="deforest"){
+      state.eventLabel = "DESMATE";
+      strongEventOverlay("deforest");
+
+      const cutTrees = Math.min(state.trees, Math.max(1, Math.floor(state.trees * 0.35)));
+      state.trees = Math.max(0, state.trees - cutTrees);
+
+      const loseBio = Math.min(state.bioC, cutTrees * 2);
+      state.bioC = Math.max(0, state.bioC - loseBio);
+
+      const burst = 6; // moderado
+      addAtmBuffered(burst);
+
+      title = "🪓 DESMATAMENTO";
+      text = `O que aconteceu:
+• Árvores perdidas: -${cutTrees} (🌳)
+• Carbono em plantas perdido: -${loseBio} (🌿)
+• Emissão: +${burst} (🔴)`;
+    }
+
+    if(kind==="fire"){
+      state.eventLabel = "QUEIMADA";
+      strongEventOverlay("fire");
+
+      const burnTrees = Math.min(state.trees, Math.max(1, Math.floor(state.trees * 0.40)));
+      const burnAlgae = Math.min(state.algae, Math.floor(state.algae * 0.30));
+      state.trees = Math.max(0, state.trees - burnTrees);
+      state.algae = Math.max(0, state.algae - burnAlgae);
+
+      const loseBio = Math.min(state.bioC, burnTrees * 2);
+      state.bioC = Math.max(0, state.bioC - loseBio);
+
+      const burst = 8; // moderado
+      addAtmBuffered(burst);
+      state.droughtBoost = 0.10;
+
+      title = "🔥 QUEIMADA";
+      text = `O que aconteceu:
+• Árvores perdidas: -${burnTrees} (🌳)
+• Algas perdidas: -${burnAlgae} (🦠)
+• Carbono em plantas perdido: -${loseBio} (🌿)
+• Emissão: +${burst} (🔴)`;
+    }
+
+    updateUI();
+    $("mTitle").textContent = title;
+    $("mText").textContent = text;
+    openModal("modal");
+  }
+
+  /* ===== Spawn ===== */
+  function spawnC(){ if(!state.running || state.paused) return; createToken("c"); }
+  function spawnCO2(){
+    if(!state.running || state.paused) return;
+    // 1 🔴 entra no buffer (não pula demais)
+    addAtmBuffered(1);
+    createToken("co2");
+    updateUI();
+  }
+
+  /* ===== Diagnóstico: sumidouro REAL precisa de sedimento alto ===== */
+  function pctAir(){
+    const total = (state.sed + state.wat + state.bioC + state.algae) + state.atm + 1e-9;
+    return state.atm / total;
+  }
+
+  function stopAllTimers(){
+    Object.values(state.timers).forEach(t=> t && clearInterval(t));
+    state.timers = {};
+  }
+
+  function finishGame(){
+    state.running = false;
+    state.paused = true;
+    stopAllTimers();
+
+    // remove tokens visuais, mas NÃO muda contadores
+    state.tokens.forEach(v=>v.el.remove());
+    state.tokens.clear();
+
+    // RESTAURAÇÃO: se já passou pelos 3 eventos, ganha +5 árvores
+    let bonus = 0;
+    if(state.stage >= 3){
+      bonus = 5;
+      state.trees += bonus;
+      // opcional: aumentar um pouco biomassa associada
+      state.bioC += bonus * 2;
+    }
+
+    const pct = Math.round(pctAir()*100);
+
+    // critério de sumidouro REAL:
+    // 1) % no ar baixo
+    // 2) sedimento acima de um mínimo
+    const sedMin = 8;
+    const airOk = (pct <= 20);
+    const sedOk = (state.sed >= sedMin);
+
+    let status;
+    if(airOk && sedOk) status = "✅ SUMIDOURO real: pouco 🔴 no ar e muito carbono estocado no Sedimento.";
+    else if(airOk && !sedOk) status = "⚠️ Quase sumidouro: ar está bom, mas falta estocar mais no Sedimento.";
+    else status = "❌ FONTE: muito 🔴 no ar (emissões dominando).";
+
+    $("mTitle").textContent = "🏅 CARBONAUTA";
+    $("mText").textContent =
+`Resultados:
+🟫 Sedimento: ${state.sed}
+💧 Água: ${state.wat}
+🦠 Algas: ${state.algae}
+🌿 Plantas (C): ${state.bioC} | 🌳 Árvores: ${state.trees}
+🌫️ Atmosfera (🔴): ${state.atm}
+📊 % no ar: ${pct}%
+
+${bonus ? `🌱 Restauração no final: +${bonus} 🌳 (bônus)\n` : ""}${status}
+
+Mensagem climática:
+Eventos extremos aumentam emissões. Vegetação e algas ajudam a recuperar CO₂, mas o Sedimento é o grande estoque de longo prazo.`;
+
+    openModal("modal");
+    updateUI();
+  }
+
+  /* ===== Roteiro de tempo =====
+     13s: SECA
+     26s: DESMATE
+     39s: QUEIMADA
+     40–60s: RESTAURAÇÃO (sem evento; só bônus no fim)
+  */
+  function tick(){
+    if(!state.running) return;
+    if(state.paused) return;
+
+    state.t -= 1;
+    state.elapsed += 1;
+
+    if(state.t <= 0){
+      state.t = 0;
+      updateUI();
+      finishGame();
+      return;
+    }
+
+    // dispara eventos exatos
+    if(state.elapsed === 13){
+      state.stage = 0;
+      triggerEvent("drought");
+      state.stage = 1;
+      return;
+    }
+    if(state.elapsed === 26){
+      state.stage = 1;
+      triggerEvent("deforest");
+      state.stage = 2;
+      return;
+    }
+    if(state.elapsed === 39){
+      state.stage = 2;
+      triggerEvent("fire");
+      state.stage = 3;      // entrou em restauração
+      state.eventLabel = "RESTAURAÇÃO";
+      updateUI();
+      toast("🌱 Restauração ativa até o fim!", 1200);
+      return;
+    }
+
+    // durante restauração: reduz levemente a emissão ao longo do tempo
+    if(state.stage >= 3){
+      state.droughtBoost = Math.max(0, state.droughtBoost - 0.03);
+    }
+
+    updateUI();
+  }
+
+  $("finishBtn").addEventListener("click", ()=>{
+    if(state.running) finishGame();
+  });
+
+  $("resetBtn").addEventListener("click", ()=>{
+    stopAllTimers();
+    state.tokens.forEach(v=>v.el.remove());
+    state.tokens.clear();
+    openModal("startModal");
+  });
+
+  // close modals
+  $("closeBtn").addEventListener("click", ()=>{
+    if($("modal").classList.contains("show")) closeModal("modal");
+    if($("startModal").classList.contains("show")) closeModal("startModal");
+  });
+  $("xClose").addEventListener("click", ()=>{
+    if($("modal").classList.contains("show")) closeModal("modal");
+    if($("startModal").classList.contains("show")) closeModal("startModal");
+  });
+  $("modal").addEventListener("click", (e)=>{ if(e.target === $("modal")) closeModal("modal"); });
+
+  function startGame(){
+    stopAllTimers();
+    state.running = true;
+    state.paused = false;
+    state.elapsed = 0;
+
+    state.stage = 0;
+    state.eventLabel = "—";
+    state.droughtBoost = 0;
+
+    state.atmBufferPlus = 0;
+    state.atmBufferMinus = 0;
+
+    state.t = 60;
+    state.isDay = true;
+    applyDayNight();
+
+    // inicial (um pouco mais “natural”)
+    state.sed = 10;
+    state.wat = 6;
+    state.atm = 6;
+
+    state.bioC = 0;
+    state.trees = 0;
+    state.algae = 0;
+    state.plantBuf = 0;
+    state.algaeBuf = 0;
+
+    state.tokens.forEach(v=>v.el.remove());
+    state.tokens.clear();
+
+    for(let i=0;i<3;i++) createToken("c");
+    createToken("co2");
+
+    updateUI();
+    toast("✅ Começou! Estocar no 🟫 é a meta principal.", 1500);
+
+    resumeGameTimers();
+  }
+
+  // init
+  openModal("startModal");
+  updateUI();
+  applyDayNight();
+</script>
+</body>
+</html>
